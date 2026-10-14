@@ -227,7 +227,20 @@ function Invoke-RuleRepair {
         Write-RepairResults $directory $results.ToArray() 'PreflightPassed' $notes
 
         foreach ($item in $work) {
-            $item.Action.Folder = $item.Target
+            if ([Runtime.InteropServices.Marshal]::IsComObject($item.Action)) {
+                # Folder is an object reference. A value assignment can silently
+                # leave Outlook's target empty or resolve the wrong same-name folder.
+                [void]$item.Action.GetType().InvokeMember('Folder', [Reflection.BindingFlags]::PutRefDispProperty, $null, $item.Action, [object[]]@($item.Target))
+            }
+            else { $item.Action.Folder = $item.Target }
+            $assigned = $null
+            try {
+                $assigned = $item.Action.Folder
+                if ($null -eq $assigned -or [string]$assigned.EntryID -ne $item.TargetEntryId -or [string]$assigned.StoreID -ne $item.TargetStoreId) {
+                    throw "Outlook chưa nhận đúng thư mục đích; chưa Save: $($item.Journal.RuleName)"
+                }
+            }
+            finally { Release-OutlookReference $assigned }
             $item.Journal.Status = 'Staged'
         }
         if ($EnableRepairedRules) {

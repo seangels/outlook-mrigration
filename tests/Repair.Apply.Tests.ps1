@@ -196,6 +196,28 @@ Describe 'Bulk repair preflight and writes' {
         (Import-Csv -LiteralPath $journal.FullName)[0].Status | Should Be 'NotSaved'
     }
 
+    It 'does not save when a folder setter silently ignores the assignment' {
+        $move = $session.Stores.Item(1).RulesList.Item(1).Actions.MoveToFolder
+        $move | Add-Member ScriptProperty Folder { $null } { param($Value) } -Force
+        { Invoke-RuleRepair -Session $session -MappingFile $mapping -DataRoot (Join-Path $caseRoot 'out') -BackupRulesFile $backupFile -Confirm:$false } | Should Throw
+        $session.Stores.Item(1).RulesList.SaveCalls | Should Be 0
+        $journal = Get-ChildItem -LiteralPath (Join-Path $caseRoot 'out/Report') -Filter 'repair-results.csv' -Recurse | Select-Object -First 1
+        (Import-Csv -LiteralPath $journal.FullName)[0].Status | Should Be 'NotSaved'
+    }
+
+    It 'does not save when the assigned folder has a different identity' {
+        $move = $session.Stores.Item(1).RulesList.Item(1).Actions.MoveToFolder
+        $move | Add-Member NoteProperty AssignedFolder $null
+        $move | Add-Member ScriptProperty Folder { $this.AssignedFolder } {
+            param($Value)
+            $this.AssignedFolder = [pscustomobject]@{
+                EntryID = 'wrong-folder'; StoreID = $Value.StoreID; FolderPath = $Value.FolderPath
+            }
+        } -Force
+        { Invoke-RuleRepair -Session $session -MappingFile $mapping -DataRoot (Join-Path $caseRoot 'out') -BackupRulesFile $backupFile -Confirm:$false } | Should Throw
+        $session.Stores.Item(1).RulesList.SaveCalls | Should Be 0
+    }
+
     It 'does not report success when Enabled cannot be read after saving a disabled rule' {
         $rules = $session.Stores.Item(1).RulesList
         $rules | Add-Member ScriptMethod Save {

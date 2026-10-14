@@ -1,3 +1,4 @@
 # Generated migration and repair reports.
 /Report/*
 !/Report/.gitkeep
+/**/*.rwz
