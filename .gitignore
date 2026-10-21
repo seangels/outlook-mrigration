@@ -2,3 +2,5 @@
 /Report/*
 !/Report/.gitkeep
 /**/*.rwz
+data-from-old-pc/*
+/Rules/*
